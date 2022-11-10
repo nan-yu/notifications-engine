@@ -43,8 +43,8 @@ type GitHubStatus struct {
 }
 
 const (
-	repoURLtemplate  = "{{.app.spec.source.repoURL}}"
-	revisionTemplate = "{{.app.status.operationState.syncResult.revision}}"
+	repoURLtemplate  = "{{.sync.spec.git.repo}}"
+	revisionTemplate = "{{.sync.status.lastSyncedCommit}}"
 )
 
 func (g *GitHubNotification) GetTemplater(name string, f texttemplate.FuncMap) (Templater, error) {
@@ -202,6 +202,30 @@ func (g gitHubService) Send(notification Notification, _ Destination) error {
 		if err != nil {
 			return err
 		}
+
+		// create a comment on all referenced pull requests
+		prs, _, err := g.client.PullRequests.ListPullRequestsWithCommit(context.Background(),
+			u[0],
+			u[1],
+			notification.GitHub.revision,
+			nil,
+		)
+		commentBody := fmt.Sprintf("Sync for commit %q is %s", notification.GitHub.revision, notification.GitHub.Status.State)
+		for _, pr := range prs {
+			prComment := &github.IssueComment{
+				Body: &commentBody,
+			}
+			_, _, err := g.client.Issues.CreateComment(context.Background(),
+				u[0],
+				u[1],
+				pr.GetNumber(),
+				prComment,
+			)
+			if err != nil {
+				return err
+			}
+		}
+
 	}
 
 	return nil

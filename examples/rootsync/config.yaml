@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: root-sync-notifications-cm
+data:
+  service.github: |
+    appID: 256582
+    installationID: 30782630
+    privateKey: $github-privateKey
+
+  template.app-deployed: |
+    message: |
+      Application {{.sync.metadata.name}} is now running new version of deployments manifests.
+    github:
+      status:
+        state: success
+        label: "continuous-delivery/{{.sync.metadata.name}}"
+        targetURL: ""
+
+  trigger.on-sync-synced: |
+    - when: any(sync.status.conditions, {.type == 'Syncing' && .status == 'False' && .message == 'Sync Completed'})
+      oncePer: sync.status.lastSyncedCommit
+      send: [sync-synced]
+
+  template.sync-synced: |
+    message: |
+      Root Sync {{.sync.metadata.name}} is synced!
+    github:
+      status:
+        state: success
+        label: "continuous-delivery/{{.sync.metadata.name}}"
+        targetURL: ""
+
+  trigger.on-reconciling: |
+    - when: any(sync.status.conditions, {.type == 'Reconciling' && .status == 'True'})
+      send: [reconciling]
+
+  template.reconciling: |
+    message: |
+      Root Sync {{.sync.metadata.name}} is still reconciling!
+
+  service.email.gmail: '{ username: $email-username, password: $email-password, host:
+      smtp.gmail.com, port: 465, from: $email-username }'
+
+
